@@ -83,7 +83,7 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
                 case 1:{
                     if(nread + pclient->processor.size >= sizeof(evpacket_t)){
                         // whole header ready
-                        auto delta = sizeof(evpacket_t);
+                        auto delta = sizeof(evpacket_t) - pclient->processor.size;
                         memcpy(&pclient->processor.hdr + pclient->processor.size, data, delta);
                         pclient->processor.hdr.length = ntohl(pclient->processor.hdr.length);
                         nread -= delta;

@@ -20,10 +20,7 @@
 using namespace std;
 
 //
-//#define ENALBE_RECORD
-#define ENABLE_SMART
-//#define ENABLE_PUSH
-
+#define ENALBE_RECORD
 #define NUM_IFRAME_PICK 2
 #define NUM_MAX_QUEQUE_SIZE 120
 #define NUM_MAX_PACKET_BYTES 1000
@@ -34,6 +31,7 @@ static unsigned long long frameCntPframe = 0;
 static unsigned long long frameCntIframePrev = 0;
 static bool bPFrameAvail = false;
 static bool bAvailable = false;
+static bool enablePush = false;
 
 static queue<DataItem> _frameQueue;
 static mutex _mutFrame;
@@ -59,9 +57,10 @@ void clean_up(int sig){
         MaQueVideoEncFrameInfo_s *pMem = (MaQueVideoEncFrameInfo_s*) elem.ud;
         MaQue_Demo_Mem_release(pMem->handleMem);
     }
-    //rtsp_finish(args.rtsp);
-    stop_md_bd();
+
+    //stop_md_bd();
     LibXmMaQue_System_destroy();
+    exit(1);
 }
 
 MaQueVideoEncodeCfg_s *init_stream_cfg(MaQueVideoEncodeCfg_s *cfg) {
@@ -138,7 +137,7 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
     struct timeval stTimeVal;
     int ret;
 
-    spdlog::info("new frame {}", frameCntTotal);
+    //spdlog::info("new frame {}", frameCntTotal);
     frameCntTotal++;
 
     // stTimeVal.tv_sec = pstSysTime->day * 24 * 60 * 60 + pstSysTime->hour * 60 * 60
@@ -153,8 +152,7 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
     #endif
 
 
-    #ifdef ENABLE_PUSH
-    if(args->dataq && frame->eEncodeType == MAQUE_ENCODE_TYPE_H264) {
+    if(enablePush && args->dataq && frame->eEncodeType == MAQUE_ENCODE_TYPE_H264) {
         //lock_guard<mutex> lock(*args->noti->mut);
         if(args->dataq->size() >= NUM_MAX_QUEQUE_SIZE){
             bAvailable = false;
@@ -168,7 +166,6 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
         }
   
         if(bAvailable){
-            spdlog::info("h264 avail");
             timeval tv;
             //::gettimeofday(&tv,NULL);
             DataItem dt = {(char *)frame->pData - sizeof(evpacket_t), frame->nDataLen + sizeof(evpacket_t), (void*)frame};
@@ -206,7 +203,6 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
             spdlog::error("h264 not avail");
         }
     }
-    #endif
 
 	MaQue_Demo_Mem_release(frame->handleMem);
 
@@ -240,7 +236,8 @@ void frame_send_entry(void * args){
             // }
             while(elem.size >0) {
                 ptr += sent;
-                sent = ::send(raw_socket_, ptr, elem.size > NUM_MAX_PACKET_BYTES? NUM_MAX_PACKET_BYTES:elem.size, 0);
+                //sent = ::send(raw_socket_, ptr, elem.size > NUM_MAX_PACKET_BYTES? NUM_MAX_PACKET_BYTES:elem.size, 0);
+                sent = ::send(raw_socket_, ptr, elem.size, 0);
                 if(sent <= 0){
                     break;
                 }
@@ -266,6 +263,7 @@ int main(int argc, char *argv[]){
     if(argc == 3){
         host = argv[1];
         port = argv[2];
+        enablePush = true;
     }
     // time_t stm;
     // if(getNtpTime(&stm) >=0){
@@ -334,25 +332,22 @@ int main(int argc, char *argv[]){
     }
 
     signal(SIGINT, clean_up);
-    signal(SIGTERM, clean_up);
+    //signal(SIGTERM, clean_up);
     signal(SIGKILL, clean_up);
     
-    #ifdef ENABLE_PUSH
-    raw_connect(host, port, &raw_socket_);
-    if(raw_socket_ == 0){
-        spdlog::error("failed to create socket");
-        exit(1);
+    if(enablePush) {
+        raw_connect(host, port, &raw_socket_);
+        if(raw_socket_ == 0){
+            spdlog::error("failed to create socket");
+            exit(1);
+        }
+        thread thPush = thread(frame_send_entry, &args);
+        spdlog::info("sizeof pkt header {}, sizeof tv {}", sizeof(evpacket_t), sizeof(timeval));
+        thPush.detach();
     }
-    thread thPush = thread(frame_send_entry, &args);
-    spdlog::info("sizeof pkt header {}, sizeof tv {}", sizeof(evpacket_t), sizeof(timeval));
-    thPush.detach();
-    #endif
 
     start_md_bd(&args);
 
-
-    #ifdef ENABLE_SMART
     thread thSmart = thread(maq_smart_task_entry, &args);
     thSmart.join();
-    #endif
 }
