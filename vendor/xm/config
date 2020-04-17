@@ -1,0 +1,4 @@
+
+CROSS_COMPILE	= arm-himix100-linux-
+
+CFLAGS	+= -mcpu=cortex-a7 -mfloat-abi=softfp -mfpu=neon-vfpv4 -mno-unaligned-access -fno-aggressive-loop-optimizations

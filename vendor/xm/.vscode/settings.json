@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "demo_mem.h": "c",
+        "demo_inc.h": "c",
+        "demo_file.h": "c",
+        "demo_common.h": "c",
+        "libxmmaque_api.h": "c",
+        "maque_track.h": "c",
+        "maque_time.h": "c",
+        "maque_system.h": "c",
+        "maque_watchdog.h": "c",
+        "maque_video_out.h": "c",
+        "maque_video_enc.h": "c"
+    }
+}
