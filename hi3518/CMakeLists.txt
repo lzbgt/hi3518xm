@@ -23,3 +23,6 @@ add_library(motion STATIC motion.cc)
 
 add_executable(evcamera main.cc)
 target_link_libraries(evcamera PUBLIC ntp tcp_client smart motion ${COMMON_LIBS})
+
+add_executable(ntp_client ntp_main.cc)
+target_link_libraries(ntp_client PUBLIC ntp)

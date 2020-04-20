@@ -137,17 +137,17 @@ ntp/fast:
 .PHONY : ntp/fast
 
 #=============================================================================
-# Target rules for targets named motion
+# Target rules for targets named ntp_client
 
 # Build rule for target.
-motion: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 motion
-.PHONY : motion
+ntp_client: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 ntp_client
+.PHONY : ntp_client
 
 # fast build rule for target.
-motion/fast:
-	$(MAKE) -f CMakeFiles/motion.dir/build.make CMakeFiles/motion.dir/build
-.PHONY : motion/fast
+ntp_client/fast:
+	$(MAKE) -f CMakeFiles/ntp_client.dir/build.make CMakeFiles/ntp_client.dir/build
+.PHONY : ntp_client/fast
 
 #=============================================================================
 # Target rules for targets named smart
@@ -161,6 +161,19 @@ smart: cmake_check_build_system
 smart/fast:
 	$(MAKE) -f CMakeFiles/smart.dir/build.make CMakeFiles/smart.dir/build
 .PHONY : smart/fast
+
+#=============================================================================
+# Target rules for targets named motion
+
+# Build rule for target.
+motion: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 motion
+.PHONY : motion
+
+# fast build rule for target.
+motion/fast:
+	$(MAKE) -f CMakeFiles/motion.dir/build.make CMakeFiles/motion.dir/build
+.PHONY : motion/fast
 
 #=============================================================================
 # Target rules for targets named evcamera
@@ -256,6 +269,33 @@ ntp.cc.s:
 	$(MAKE) -f CMakeFiles/ntp.dir/build.make CMakeFiles/ntp.dir/ntp.cc.s
 .PHONY : ntp.cc.s
 
+ntp_main.o: ntp_main.cc.o
+
+.PHONY : ntp_main.o
+
+# target to build an object file
+ntp_main.cc.o:
+	$(MAKE) -f CMakeFiles/ntp_client.dir/build.make CMakeFiles/ntp_client.dir/ntp_main.cc.o
+.PHONY : ntp_main.cc.o
+
+ntp_main.i: ntp_main.cc.i
+
+.PHONY : ntp_main.i
+
+# target to preprocess a source file
+ntp_main.cc.i:
+	$(MAKE) -f CMakeFiles/ntp_client.dir/build.make CMakeFiles/ntp_client.dir/ntp_main.cc.i
+.PHONY : ntp_main.cc.i
+
+ntp_main.s: ntp_main.cc.s
+
+.PHONY : ntp_main.s
+
+# target to generate assembly for a file
+ntp_main.cc.s:
+	$(MAKE) -f CMakeFiles/ntp_client.dir/build.make CMakeFiles/ntp_client.dir/ntp_main.cc.s
+.PHONY : ntp_main.cc.s
+
 raw_tcp.o: raw_tcp.cc.o
 
 .PHONY : raw_tcp.o
@@ -319,9 +359,10 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... tcp_client"
 	@echo "... ntp"
-	@echo "... motion"
-	@echo "... smart"
+	@echo "... ntp_client"
 	@echo "... edit_cache"
+	@echo "... smart"
+	@echo "... motion"
 	@echo "... evcamera"
 	@echo "... main.o"
 	@echo "... main.i"
@@ -332,6 +373,9 @@ help:
 	@echo "... ntp.o"
 	@echo "... ntp.i"
 	@echo "... ntp.s"
+	@echo "... ntp_main.o"
+	@echo "... ntp_main.i"
+	@echo "... ntp_main.s"
 	@echo "... raw_tcp.o"
 	@echo "... raw_tcp.i"
 	@echo "... raw_tcp.s"

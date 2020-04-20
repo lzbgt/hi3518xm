@@ -148,6 +148,8 @@ int getNtpTime(time_t * txTm)
 
     // Print the time we got from the server, accounting for local timezone and conversion from UTC time.
 
+    ::close(socket_);
+
     spdlog::info( "Time: {}", (int)ctime( ( const time_t* ) &txTm ) );
 
     return 0;
