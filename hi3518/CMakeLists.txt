@@ -8,6 +8,9 @@ if("${VENDOR}" STREQUAL "")
     set(SHAREDINCS "${CMAKE_SOURCE_DIR}/../include")
 endif()
 
+
+#set_source_files_properties(main.cc PROPERTIES COMPILE_FLAGS -g)
+
 set(COMM_INC_DIR ${VENDOR}/shared/include ${VENDOR}/hi3518/include ${SHAREDINCS})
 set(COMMON_LIB_DIR ${VENDOR}/shared/lib ${VENDOR}/hi3518/lib)
 list(APPEND COMMON_LIBS fmt m dl pthread XmMaQue securec XmSns_50H20AI uv)

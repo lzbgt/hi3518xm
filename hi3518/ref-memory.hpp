@@ -37,9 +37,13 @@ XM_S32 MaQue_Demo_Mem_setLength(XM_HANDLE handle, XM_U32 len)
     return 0;
 }
 
+volatile uint32_t cntAlloc = 0, cntFree = 0;
+
 XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocParam)
 {
     DemoMemory_s *pstMem = NULL;
+
+    pthread_mutex_lock(&g_mutexMem);
 
     pstMem = (DemoMemory_s *)malloc(sizeof(DemoMemory_s));
     memset(pstMem, 0, sizeof(*pstMem));
@@ -52,8 +56,11 @@ XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocPa
     case MAQUE_MEM_TYPE_VIDEO_ENC:
     case MAQUE_MEM_TYPE_JPEG_ENC:
     case MAQUE_MEM_TYPE_YUV_GET:
-    /// NOTE by Bruce: ATTENTION! we place the extr aevpacket_t ahead for saving memory oprs later
-        pstMem->pBuffer = (XM_U8 *)malloc(pstAllocParam->nBufSize + sizeof(evpacket_t)) + sizeof(evpacket_t);
+        /// NOTE by Bruce: ATTENTION! we place the extr evpacket_t ahead for saving memory ops later
+        XM_U8 * raw = (XM_U8 *)malloc(pstAllocParam->nBufSize + sizeof(evpacket_t));
+        pstMem->pBuffer =  raw + sizeof(evpacket_t);
+        spdlog::debug("malloc. raw: {0:x}, shifted: {0:x}", (uint32_t)raw, (uint32_t)pstMem->pBuffer);
+
         if (pstMem->pBuffer - sizeof(evpacket_t)) {
             pstMem->index = 0xff;
             pstMem->nBufSize = pstAllocParam->nBufSize;
@@ -77,6 +84,8 @@ XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocPa
 
     *pHandle = (XM_HANDLE)pstMem;
     pstAllocParam->pBuffer = pstMem->pBuffer;
+    cntAlloc++;
+    pthread_mutex_unlock(&g_mutexMem);
 
     return 0;
 }
@@ -84,18 +93,24 @@ XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocPa
 XM_S32 MaQue_Demo_Mem_release(XM_HANDLE handle)
 {
     DemoMemory_s *pstMem = (DemoMemory_s *)handle;
-
-    pthread_mutex_lock(&g_mutexMem);
+    
     if (!handle) {
         return -1;
     }
+    pthread_mutex_lock(&g_mutexMem);
     if (pstMem->nRefCount > 1) {
         pstMem->nRefCount--;
     }
-    else if (pstMem->pBuffer - sizeof(evpacket_t)) {
+    else if (pstMem->pBuffer && pstMem->pBuffer - sizeof(evpacket_t)) {
         /// NOTE by Bruce: ATTENTION!
+        XM_U8* shifted = pstMem->pBuffer;
+        XM_U8* raw = shifted - sizeof(evpacket_t);
+        cntFree++;
+        spdlog::debug("release. raw: {0:8x}, shifted: {0:8x}, a: {0:d}, f:{0:d}", (int)raw, (int)shifted, cntAlloc, cntFree);
         free(pstMem->pBuffer - sizeof(evpacket_t));
         free(pstMem);
+    }else{
+        spdlog::error("shouldn't be here. a:{0:d}, f:{0:d}", cntAlloc, cntFree);
     }
 
     pthread_mutex_unlock(&g_mutexMem);

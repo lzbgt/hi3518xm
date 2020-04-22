@@ -20,9 +20,9 @@
 using namespace std;
 
 //
-#define ENALBE_RECORD
+//#define ENALBE_RECORD
 #define NUM_IFRAME_PICK 2
-#define NUM_MAX_QUEQUE_SIZE 120
+#define NUM_MAX_QUEQUE_SIZE 60
 #define NUM_MAX_PACKET_BYTES 1000
 
 static unsigned long long frameCntTotal = 0;
@@ -136,7 +136,7 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
 	CallBackArg* args = (CallBackArg *)pUserArg;
     struct timeval stTimeVal;
     int ret;
-
+    
     //spdlog::info("new frame {}", frameCntTotal);
     frameCntTotal++;
 
@@ -153,7 +153,7 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
 
 
     if(enablePush && args->dataq && frame->eEncodeType == MAQUE_ENCODE_TYPE_H264) {
-        //lock_guard<mutex> lock(*args->noti->mut);
+        lock_guard<mutex> lock(*args->noti->mut);
         if(args->dataq->size() >= NUM_MAX_QUEQUE_SIZE){
             bAvailable = false;
             spdlog::warn("dataq full");
@@ -164,8 +164,8 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
         if(frame->eSubType == MAQUE_FRAME_SUBTYPE_I){
             frameCntIframe++;
         }
-  
-        if(bAvailable){
+
+        if(bAvailable && frame->pData && frame->nDataLen > 0){
             timeval tv;
             //::gettimeofday(&tv,NULL);
             DataItem dt = {(char *)frame->pData - sizeof(evpacket_t), frame->nDataLen + sizeof(evpacket_t), (void*)frame};
@@ -182,30 +182,29 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame){
 
             if(frame->eSubType == MAQUE_FRAME_SUBTYPE_I && (frameCntIframe-1) % NUM_IFRAME_PICK == 0) {
                 MaQue_Demo_Mem_addRef(frame->handleMem);
-                args->dataq->push(dt);
-                //args->noti->cond->notify_all();
+                args->dataq->push(std::move(dt));
+                args->noti->cond->notify_all();
                 frameCntIframePrev = frameCntIframe;
                 bPFrameAvail = true;
                 frameCntPframe = 0;
-                spdlog::info("=====\nframe meter ic: {}, tc: {}, len: {}, p avail", frameCntIframe, frameCntTotal, frame->nDataLen);
+                spdlog::debug("=====\nframe meter ic: {}, tc: {}, len: {}, p avail", frameCntIframe, frameCntTotal, frame->nDataLen);
             }else if(bPFrameAvail && frame->eSubType == MAQUE_FRAME_SUBTYPE_P && frameCntIframe == frameCntIframePrev){
                 MaQue_Demo_Mem_addRef(frame->handleMem);
-                args->dataq->push(dt);
+                args->dataq->push(std::move(dt));
+                args->noti->cond->notify_all();
                 ++frameCntPframe;
-                spdlog::info("=====\nframe meter pc: {}, tc: {}, len: {}, p avail", frameCntPframe, frameCntTotal, frame->nDataLen);
-                // /spdlog::info("pframe : {}, {}", frameCntIframe, frameCntIframePrev);
-                //args->noti->cond->notify_all();
+                spdlog::debug("=====\nframe meter pc: {}, tc: {}, len: {}, p avail", frameCntPframe, frameCntTotal, frame->nDataLen);
+                // spdlog::info("pframe : {}, {}", frameCntIframe, frameCntIframePrev);
             }else{
                 //spdlog::error("pframe not avail: {}, {}", frameCntIframe, frameCntIframePrev);
                 bPFrameAvail = false;
             }
         }else{
-            spdlog::error("h264 not avail");
+            spdlog::warn("h264 not avail");
         }
     }
 
 	MaQue_Demo_Mem_release(frame->handleMem);
-
 	return XM_SUCCESS;
 }
 
@@ -213,19 +212,27 @@ void frame_send_entry(void * args){
     CallBackArg * pvArg = (CallBackArg *)args;
     unsigned long long frameCnt = 0;
     while(1){
-        //unique_lock<mutex> lk(*pvArg->noti->mut);
-        //pvArg->noti->cond->wait(lk, [pvArg] {return !pvArg->dataq->empty();});
-        if(pvArg->dataq->empty()){
-            this_thread::sleep_for(chrono::milliseconds(500));
-            spdlog::warn("dataq empty");
-            continue;
+        DataItem elem;
+        {
+            unique_lock<mutex> lk(*pvArg->noti->mut);
+            pvArg->noti->cond->wait(lk, [pvArg] {return !pvArg->dataq->empty();});
+            if(pvArg->dataq->empty()){
+                this_thread::sleep_for(chrono::milliseconds(500));
+                printf("dataq empty");
+                continue;
+            }
+            elem = pvArg->dataq->front();
+            //pvArg->dataq->pop();
+            frameCnt++;
         }
-        auto elem = pvArg->dataq->front();
-        pvArg->dataq->pop();
         MaQueVideoEncFrameInfo_s *pMem = (MaQueVideoEncFrameInfo_s *)elem.ud;
-        frameCnt++;
         
         // send frame
+        if(elem.size <= 0 || elem.buf == nullptr || (elem.buf + sizeof(evpacket_t)) == nullptr) {
+            spdlog::error("invalid frame. addr: {0:x}, len: {0:d}", (uint32_t)elem.buf, elem.size);
+            pvArg->dataq->pop();
+            continue;
+        }
         if(elem.size > 0){
             char * ptr = elem.buf;
             size_t sent = 0;
@@ -251,7 +258,9 @@ void frame_send_entry(void * args){
         }else{
             spdlog::error("size error or not got time");
         }
+
         MaQue_Demo_Mem_release(pMem->handleMem);
+        pvArg->dataq->pop();
     }
 }
 
@@ -336,8 +345,8 @@ int main(int argc, char *argv[]){
     signal(SIGKILL, clean_up);
     
     if(enablePush) {
-        raw_connect(host, port, &raw_socket_);
-        if(raw_socket_ == 0){
+        ret = raw_connect(host, port, &raw_socket_);
+        if(ret <0 || raw_socket_ <= 0){
             spdlog::error("failed to create socket");
             exit(1);
         }
