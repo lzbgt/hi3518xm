@@ -49,7 +49,7 @@ bool is_big_endian(void)
         char c[4];
     } bint = {0x01020304};
 
-    return bint.c[0] == 1; 
+    return bint.c[0] == 1;
 }
 
 void free_write_req(uv_write_t *req)
@@ -213,8 +213,9 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
                     //debugHex((char*)&pclient->processor.hdr, 64);
                     if(pclient->processor.packetId == 0) {
                         pclient->processor.packetId = pclient->processor.hdr.meta.packet_id;
-                    }else{
-                        if(pclient->processor.hdr.meta.packet_id <= pclient->processor.packetId){
+                    }
+                    else {
+                        if(pclient->processor.hdr.meta.packet_id <= pclient->processor.packetId) {
                             spdlog::error("invalid packetId, ignored. server:{}, client:{}", pclient->processor.packetId, pclient->processor.hdr.meta.packet_id );
                             pclient->processor.size = 0;
                             pclient->processor.state = 1;
@@ -223,15 +224,19 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
                         }
                     }
 
-                    if (pclient->processor.hdr.meta.magic[0] != (char)0xBE || pclient->processor.hdr.meta.magic[1] != (char)0xEF || pclient->processor.hdr.length == 0) {
-                        printf("invalid packet header or len: %02hhX%02hhX, len:%u. BUG!!! %s:%d\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length, __FILE__, __LINE__);
+                    uint16_t crc = pclient->processor.hdr.meta.crc;
+                    pclient->processor.hdr.meta.crc = 0;
+                    uint16_t crc_ = crc16((unsigned char*)&pclient->processor.hdr, sizeof(evpacket_t));
+                    if (crc!=crc_||pclient->processor.hdr.meta.magic[0] != (char)0xBE || pclient->processor.hdr.meta.magic[1] != (char)0xEF || pclient->processor.hdr.length == 0) {
+                        printf("packet corruption: invalid magic/len/cid. hdr: %02hhX%02hhX, len:%u, cid:%lu, sid:%lu. crc:%04hhX, crcc:%04hhX. BUG!!! %s:%d\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length,
+                               pclient->processor.hdr.meta.packet_id,pclient->processor.packetId,crc, crc_, __FILE__, __LINE__);
                         pclient->processor.size = 0;
                         pclient->processor.state = 1;
                         nread = 0;
                         continue;
                     }
                     else {
-                        printf("new packet: %02hhX%02hhX, len: %u, cid:%u, sid:%u\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length, pclient->processor.hdr.meta.packet_id,pclient->processor.packetId);
+                        printf("new packet: %02hhX%02hhX, len: %lu, cid:%lu, sid:%lu\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length, pclient->processor.hdr.meta.packet_id,pclient->processor.packetId);
                     }
 
                     if (pclient->processor.hdr.length >= 500000) {

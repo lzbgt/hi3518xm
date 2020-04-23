@@ -30,6 +30,7 @@ typedef struct evpacket_meta_t {
     char magic[2];
     uint64_t packet_id;
     char sn[TERMINAL_SN_SIZE];
+    uint16_t crc;
 }*evpacket_meta_ptr_t;
 
 typedef struct evpacket_video_t {
@@ -44,6 +45,19 @@ typedef struct evpacket_t {
     evpacket_video_t vpara;
     uint32_t length;
 } *evpacket_ptr_t;
+
+
+static inline unsigned short crc16(const unsigned char* data_p, unsigned char length){
+    unsigned char x;
+    unsigned short crc = 0xFFFF;
+
+    while (length--){
+        x = crc >> 8 ^ *data_p++;
+        x ^= x>>4;
+        crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
+    }
+    return crc;
+}
 
 
 #endif

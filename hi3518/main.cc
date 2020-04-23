@@ -194,6 +194,8 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
             //pkt->vpara.ts = tv;
             pkt->length = frame->nDataLen;
             pkt->meta.packet_id = packetId;
+            pkt->meta.crc = 0;
+            pkt->meta.crc = crc16((unsigned char*)pkt, sizeof(evpacket_t));
 
             //  if(frame->eSubType == MAQUE_FRAME_SUBTYPE_I && (frameCntIframe-1) % NUM_IFRAME_PICK == 0) {
             MaQue_Demo_Mem_addRef(frame->handleMem);
