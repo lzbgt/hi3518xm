@@ -1,0 +1,14 @@
+prefix=/mnt/shared/evcamera/vendor/x64
+exec_prefix=${prefix}
+libdir=/mnt/shared/evcamera/vendor/x64/lib
+includedir=/mnt/shared/evcamera/vendor/x64/include
+
+Name: libswresample
+Description: FFmpeg audio resampling library
+Version: 3.6.100
+Requires: libavutil >= 56.42.102
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lswresample -lm
+Libs.private: 
+Cflags: -I${includedir}

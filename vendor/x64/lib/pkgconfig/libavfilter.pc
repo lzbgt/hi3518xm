@@ -1,0 +1,14 @@
+prefix=/mnt/shared/evcamera/vendor/x64
+exec_prefix=${prefix}
+libdir=/mnt/shared/evcamera/vendor/x64/lib
+includedir=/mnt/shared/evcamera/vendor/x64/include
+
+Name: libavfilter
+Description: FFmpeg audio/video filtering library
+Version: 7.77.101
+Requires: libswscale >= 5.6.101, libpostproc >= 55.6.100, libavformat >= 58.42.100, libavcodec >= 58.77.101, libswresample >= 3.6.100, libavutil >= 56.42.102
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavfilter -pthread -lm
+Libs.private: 
+Cflags: -I${includedir}

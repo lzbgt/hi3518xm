@@ -1,0 +1,14 @@
+prefix=/mnt/shared/evcamera/vendor/x64
+exec_prefix=${prefix}
+libdir=/mnt/shared/evcamera/vendor/x64/lib
+includedir=/mnt/shared/evcamera/vendor/x64/include
+
+Name: libavutil
+Description: FFmpeg utility library
+Version: 56.42.102
+Requires: 
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavutil -pthread -lm -lXv -lX11 -lXext
+Libs.private: 
+Cflags: -I${includedir}

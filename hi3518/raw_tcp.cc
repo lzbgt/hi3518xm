@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include "raw_tcp.h"
 
-int raw_connect(std::string host, std::string port, int *socket_){
+int raw_connect(std::string host, std::string port, int *socket_, int recv_timeout, int send_timeout){
     int rv = 0;
     struct addrinfo hints{};
     memset(&hints, 0, sizeof(struct addrinfo));
@@ -54,6 +54,22 @@ int raw_connect(std::string host, std::string port, int *socket_){
             rv = -1;
         }
     }
+    struct timeval timeout;      
+    timeout.tv_sec = recv_timeout;
+    timeout.tv_usec = 0;
+
+    if (setsockopt (*socket_, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0){
+        spdlog::error("setsockopt SO_RCVTIMEO failed");
+        return -1;
+    }
+
+    timeout.tv_sec = send_timeout;
+
+    if (setsockopt (*socket_, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
+        spdlog::error("setsockopt SO_SNDTIMEO failed");
+        return -1;
+    }
+
     ::freeaddrinfo(addrinfo_result);
     return rv;
 }

@@ -10,5 +10,5 @@
 #include "common.h"
 
 using namespace std;
-int raw_connect(std::string host, std::string port, int *socket_);
+int raw_connect(std::string host, std::string port, int *socket_, int recv_timeout = 5, int send_timeout = 5);
 #endif

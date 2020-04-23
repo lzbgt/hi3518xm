@@ -50,13 +50,13 @@ void start_md_bd(void *args)
 
     // TODO: params setting from args
     mdParam.stMdParam.bEnabled = 1;
-    mdParam.stMdParam.x = 0;
-    mdParam.stMdParam.y = 0;
-    mdParam.stMdParam.w = 352;
-    mdParam.stMdParam.h = 288;
-    mdParam.stMdParam.eMdAlarmlevel = 3; // [1, 6]
+    mdParam.stMdParam.x = 58;
+    mdParam.stMdParam.y = 48;
+    mdParam.stMdParam.w = 352 - 58*2;
+    mdParam.stMdParam.h = 288 - 48*2;
+    mdParam.stMdParam.eMdAlarmlevel = 2; // [1, 6]
     bdParam.stBdParam.bEnabled = 1;
-    bdParam.stBdParam.eBdAlarmLevel = 3;
+    bdParam.stBdParam.eBdAlarmLevel = 2;
 
     if (mdParam.stMdParam.bEnabled) {
         LibXmMaQue_MD_create(0);
