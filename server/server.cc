@@ -58,9 +58,10 @@ void on_closed(uv_handle_t* handle)
 {
     packet_client * pclient = (packet_client *)handle;
     spdlog::error("closing client");
-    if(pclient->processor.buf){
-        free(pclient->processor.buf);
-    }
+    // TODO:
+    // if(pclient->processor.buf){
+    //     free(pclient->processor.buf);
+    // }
     avformat_free_context(pclient->processor.pAvCtx);
     delete handle;
 }
@@ -179,6 +180,7 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
     char *data = buf->base;
     static int packetId = 0;
     spdlog::debug("packetId: {}, nread: {}", ++packetId, nread);
+    lock_guard<mutex> lk(pclient->processor.mut);
     if (nread > 0) {
         evpacket_ptr_t pkt = (evpacket_ptr_t) data;
         if(nread >= 2 && pkt->meta.magic[0] == (char)0xBE && pkt->meta.magic[1] == (char)0xEF) {
