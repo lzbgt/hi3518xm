@@ -231,12 +231,14 @@ void frame_send_entry(void *args)
         }
         MaQueVideoEncFrameInfo_s *pMem = (MaQueVideoEncFrameInfo_s *)elem.ud;
 
-        // send frame
         if (elem.size <= 0 || elem.buf == nullptr || (elem.buf + sizeof(evpacket_t)) == nullptr) {
             spdlog::error("invalid frame. addr: {0:x}, len: {0:d}", (uint32_t)elem.buf, elem.size);
             pvArg->dataq->pop();
+            MaQue_Demo_Mem_release(pMem->handleMem);
             continue;
         }
+
+        // send frame
         if (elem.size > 0) {
             char *ptr = elem.buf;
             size_t sent = 0;

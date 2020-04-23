@@ -111,6 +111,9 @@ XM_S32 MaQue_Demo_Mem_release(XM_HANDLE handle)
         free(pstMem);
     }else{
         spdlog::error("shouldn't be here. a:{0:d}, f:{0:d}", cntAlloc, cntFree);
+        if(pstMem){
+            free(pstMem);
+        }
     }
 
     pthread_mutex_unlock(&g_mutexMem);
