@@ -172,15 +172,12 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
             bAvailable = true;
         }
 
-        if (frame->eSubType == MAQUE_FRAME_SUBTYPE_I) {
-            frameCntIframe++;
-        }
-
         if (bAvailable && frame->pData && frame->nDataLen > 0) {
             timeval tv;
             //::gettimeofday(&tv,NULL);
             DataItem dt = {(char *)frame->pData - sizeof(evpacket_t), frame->nDataLen + sizeof(evpacket_t), (void *)frame};
             evpacket_t *pkt = (evpacket_t *)dt.buf;
+            
             memset(pkt, 0, sizeof(*pkt));
             pkt->meta.magic[0] = 0xBE;
             pkt->meta.magic[1] = 0xEF;
@@ -196,15 +193,20 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
             pkt->meta.packet_id = packetId;
             pkt->meta.crc = 0;
             pkt->meta.crc = crc16((unsigned char*)pkt, sizeof(evpacket_t));
+            if (frame->eSubType == MAQUE_FRAME_SUBTYPE_I) {
+                frameCntIframe++;
+            }else if(frame->eSubType == MAQUE_FRAME_SUBTYPE_P){
+                frameCntPframe++;
+            }
 
-            //  if(frame->eSubType == MAQUE_FRAME_SUBTYPE_I && (frameCntIframe-1) % NUM_IFRAME_PICK == 0) {
+            // if(frame->eSubType == MAQUE_FRAME_SUBTYPE_I && (frameCntIframe-1) % NUM_IFRAME_PICK == 0) {
             MaQue_Demo_Mem_addRef(frame->handleMem);
             args->dataq->push(std::move(dt));
             args->noti->cond->notify_all();
-            frameCntIframePrev = frameCntIframe;
+            // frameCntIframePrev = frameCntIframe;
             bPFrameAvail = true;
             frameCntPframe = 0;
-            spdlog::debug("frame meter ic: {}, tc: {}, len: {}, cid: {}", frameCntIframe, frameCntTotal, frame->nDataLen, packetId);
+            spdlog::debug("frame meter ic:{}, pc:{}, tc:{}, len:{}, cid:{}", frameCntIframe, frameCntPframe,frameCntTotal, frame->nDataLen, packetId);
             // }else if(bPFrameAvail && frame->eSubType == MAQUE_FRAME_SUBTYPE_P && frameCntIframe == frameCntIframePrev){
             //     MaQue_Demo_Mem_addRef(frame->handleMem);
             //     args->dataq->push(std::move(dt));

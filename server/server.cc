@@ -318,9 +318,12 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
                 }
             }
             break;
-            case 3: {
+            case 0: {
                 // TODO: none
-                spdlog::warn("should be here state=3");
+                spdlog::warn("should be here state=0");
+                // force to waiting for header
+                pclient->processor.state = 1;
+                nread = 0;
             }
             break;
             default: {
