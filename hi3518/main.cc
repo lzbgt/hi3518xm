@@ -23,12 +23,13 @@ using namespace std;
 //#define ENALBE_RECORD
 #define NUM_IFRAME_PICK 2
 #define NUM_MAX_QUEQUE_SIZE 60
-#define NUM_MAX_PACKET_BYTES 1000
+#define NUM_MAX_PACKET_BYTES 1100
 
 static unsigned long long frameCntTotal = 0;
 static unsigned long long frameCntIframe = 0;
 static unsigned long long frameCntPframe = 0;
 static unsigned long long frameCntIframePrev = 0;
+static uint64_t packetId = 0;
 static bool bPFrameAvail = false;
 static bool bAvailable = false;
 static bool enablePush = false;
@@ -62,6 +63,16 @@ void clean_up(int sig)
     //stop_md_bd();
     LibXmMaQue_System_destroy();
     exit(1);
+}
+
+bool is_big_endian(void)
+{
+    union {
+        uint32_t i;
+        char c[4];
+    } bint = {0x01020304};
+
+    return bint.c[0] == 1; 
 }
 
 MaQueVideoEncodeCfg_s *init_stream_cfg(MaQueVideoEncodeCfg_s *cfg)
@@ -175,12 +186,14 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
             pkt->meta.magic[1] = 0xEF;
             // TODO: get sn
             memcpy(pkt->meta.sn, "test_sn", 8);
-            pkt->vpara.frame_type = htons(frame->eSubType + 1);
-            pkt->vpara.packet_type = htons(frame->eEncodeType);
-            pkt->vpara.res.width = htons(frame->nWidth);
-            pkt->vpara.res.height = htons(frame->nHeight);
+            /// NOTES: since both ends use little-endian, we don't use htonl, htons to save clocks
+            pkt->vpara.frame_type = frame->eSubType + 1;
+            pkt->vpara.packet_type = frame->eEncodeType;
+            pkt->vpara.res.width = frame->nWidth;
+            pkt->vpara.res.height = frame->nHeight;
             //pkt->vpara.ts = tv;
-            pkt->length = htonl(frame->nDataLen);
+            pkt->length = frame->nDataLen;
+            pkt->meta.packet_id = packetId;
 
             //  if(frame->eSubType == MAQUE_FRAME_SUBTYPE_I && (frameCntIframe-1) % NUM_IFRAME_PICK == 0) {
             MaQue_Demo_Mem_addRef(frame->handleMem);
@@ -189,7 +202,7 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
             frameCntIframePrev = frameCntIframe;
             bPFrameAvail = true;
             frameCntPframe = 0;
-            spdlog::debug("=====\nframe meter ic: {}, tc: {}, len: {}, p avail", frameCntIframe, frameCntTotal, frame->nDataLen);
+            spdlog::debug("frame meter ic: {}, tc: {}, len: {}, cid: {}", frameCntIframe, frameCntTotal, frame->nDataLen, packetId);
             // }else if(bPFrameAvail && frame->eSubType == MAQUE_FRAME_SUBTYPE_P && frameCntIframe == frameCntIframePrev){
             //     MaQue_Demo_Mem_addRef(frame->handleMem);
             //     args->dataq->push(std::move(dt));
@@ -201,10 +214,10 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
             //     //spdlog::error("pframe not avail: {}, {}", frameCntIframe, frameCntIframePrev);
             //     bPFrameAvail = false;
             // }
+            packetId++;
         }
-        else {
-            spdlog::warn("h264 not avail");
-        }
+    }else{
+        //
     }
 
     MaQue_Demo_Mem_release(frame->handleMem);
@@ -226,14 +239,14 @@ void frame_send_entry(void *args)
                 continue;
             }
             elem = pvArg->dataq->front();
+            pvArg->dataq->pop();
             //pvArg->dataq->pop();
             frameCnt++;
         }
         MaQueVideoEncFrameInfo_s *pMem = (MaQueVideoEncFrameInfo_s *)elem.ud;
 
         if (elem.size <= 0 || elem.buf == nullptr || (elem.buf + sizeof(evpacket_t)) == nullptr) {
-            spdlog::error("invalid frame. addr: {0:x}, len: {0:d}", (uint32_t)elem.buf, elem.size);
-            pvArg->dataq->pop();
+            printf("invalid frame. addr: %08X, len:%u\n", (uint32_t)elem.buf, elem.size);
             MaQue_Demo_Mem_release(pMem->handleMem);
             continue;
         }
@@ -249,8 +262,8 @@ void frame_send_entry(void *args)
             // }
             while (elem.size > 0) {
                 ptr += sent;
-                //sent = ::send(raw_socket_, ptr, elem.size > NUM_MAX_PACKET_BYTES? NUM_MAX_PACKET_BYTES:elem.size, 0);
-                sent = ::send(raw_socket_, ptr, elem.size, 0);
+                sent = ::send(raw_socket_, ptr, elem.size > NUM_MAX_PACKET_BYTES? NUM_MAX_PACKET_BYTES:elem.size, 0);
+                //sent = ::send(raw_socket_, ptr, elem.size, 0);
                 if (sent <= 0) {
                     break;
                 }
@@ -265,9 +278,7 @@ void frame_send_entry(void *args)
         else {
             spdlog::error("size error or not got time");
         }
-
         MaQue_Demo_Mem_release(pMem->handleMem);
-        pvArg->dataq->pop();
     }
 }
 
@@ -275,9 +286,9 @@ void frame_send_entry(void *args)
 int main(int argc, char *argv[])
 {
     int ret = XM_SUCCESS;
-    spdlog::info("test on hi3518ev300");
+    spdlog::info("test on hi3518ev300, {}", is_big_endian());
     char *host = "192.168.55.104", *port = "7123";
-    if (argc == 3) {
+    if (argc >= 3) {
         host = argv[1];
         port = argv[2];
         enablePush = true;

@@ -26,7 +26,9 @@ typedef struct evresolution_t {
 }evresolution_t;
 
 typedef struct evpacket_meta_t {
-    char magic[2];  // 0xBE, 0xEF
+    /// 0xBE, 0xEF
+    char magic[2];
+    uint64_t packet_id;
     char sn[TERMINAL_SN_SIZE];
 }*evpacket_meta_ptr_t;
 

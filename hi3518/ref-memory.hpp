@@ -59,7 +59,7 @@ XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocPa
         /// NOTE by Bruce: ATTENTION! we place the extr evpacket_t ahead for saving memory ops later
         XM_U8 * raw = (XM_U8 *)malloc(pstAllocParam->nBufSize + sizeof(evpacket_t));
         pstMem->pBuffer =  raw + sizeof(evpacket_t);
-        spdlog::debug("malloc. raw: {0:x}, shifted: {0:x}", (uint32_t)raw, (uint32_t)pstMem->pBuffer);
+        //printf("malloc. raw: %08X, shifted: %08X\n", (uint32_t)raw, (uint32_t)pstMem->pBuffer);
 
         if (pstMem->pBuffer - sizeof(evpacket_t)) {
             pstMem->index = 0xff;
@@ -106,7 +106,7 @@ XM_S32 MaQue_Demo_Mem_release(XM_HANDLE handle)
         XM_U8* shifted = pstMem->pBuffer;
         XM_U8* raw = shifted - sizeof(evpacket_t);
         cntFree++;
-        spdlog::debug("release. raw: {0:8x}, shifted: {0:8x}, a: {0:d}, f:{0:d}", (int)raw, (int)shifted, cntAlloc, cntFree);
+        //printf("release. raw: %08X, shifted: %08X, a: %d, f: %d\n", (int)raw, (int)shifted, cntAlloc, cntFree);
         free(pstMem->pBuffer - sizeof(evpacket_t));
         free(pstMem);
     }else{
