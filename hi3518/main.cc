@@ -162,15 +162,16 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
     }
 #endif
 
+    bAvailable = true;
     if (enablePush && args->dataq && frame->eEncodeType == MAQUE_ENCODE_TYPE_H264) {
         lock_guard<mutex> lock(*args->noti->mut);
         if (args->dataq->size() >= NUM_MAX_QUEQUE_SIZE) {
-            bAvailable = false;
             spdlog::warn("dataq full");
+            args->dataq->pop();
         }
-        else if (args->dataq->size() <= NUM_MAX_QUEQUE_SIZE * 2 / 3) {
-            bAvailable = true;
-        }
+        // else if (args->dataq->size() <= NUM_MAX_QUEQUE_SIZE * 2 / 3) {
+        //     bAvailable = true;
+        // }
 
         if (bAvailable && frame->pData && frame->nDataLen > 0) {
             timeval tv;
@@ -205,7 +206,6 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
             args->noti->cond->notify_all();
             // frameCntIframePrev = frameCntIframe;
             bPFrameAvail = true;
-            frameCntPframe = 0;
             spdlog::debug("frame meter ic:{}, pc:{}, tc:{}, len:{}, cid:{}", frameCntIframe, frameCntPframe,frameCntTotal, frame->nDataLen, packetId);
             // }else if(bPFrameAvail && frame->eSubType == MAQUE_FRAME_SUBTYPE_P && frameCntIframe == frameCntIframePrev){
             //     MaQue_Demo_Mem_addRef(frame->handleMem);
