@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 #include <evpacket.h>
 #include <sys/time.h>
+#include <mutex>
 
 extern "C" {
 #include <libavutil/timestamp.h>
@@ -32,6 +33,7 @@ typedef struct {
     int state; // 0 - unkown; 1 - receiving header; 2 - header ready, receiving body; 3 - body ready, processing
     AVFormatContext *pAvCtx;
     uint64_t pktCnt;
+    mutex mut;
 } packet_processor_t;
 
 typedef struct {
@@ -60,7 +62,7 @@ void on_closed(uv_handle_t* handle)
         free(pclient->processor.buf);
     }
     avformat_free_context(pclient->processor.pAvCtx);
-    free(handle);
+    delete handle;
 }
 
 void on_written(uv_write_t *req, int status)
@@ -114,7 +116,7 @@ AVFormatContext* rtsp_init(string rtsp_url, int codec, int height, int width)
     memset(out_codecpar, 0, sizeof(AVCodecParameters));
     out_codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
     out_codecpar->codec_id = AV_CODEC_ID_H264;
-    out_codecpar->bit_rate = 400000;
+    out_codecpar->bit_rate = 200 * 100 * 8; //400000;
     out_codecpar->width = width;
     out_codecpar->height = height;
     out_codecpar->codec_tag = 0;
@@ -288,7 +290,7 @@ void on_connect(uv_stream_t *server, int status)
         return;
     }
     spdlog::info("client connected");
-    packet_client *client = (packet_client*) ::calloc(sizeof(packet_client), 1);
+    packet_client *client = new packet_client();
     client->processor.handle = &client->handle;
     uv_tcp_init(loop, (uv_tcp_t *)client);
     if (uv_accept(server, (uv_stream_t*) client) == 0) {
@@ -302,8 +304,8 @@ void on_connect(uv_stream_t *server, int status)
 
 int main()
 {
+    spdlog::set_level(spdlog::level::debug);
     loop = uv_default_loop();
-
     uv_tcp_t server;
     uv_tcp_init(loop, &server);
     uv_ip4_addr("0.0.0.0", DEFAULT_PORT, &addr);

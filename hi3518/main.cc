@@ -52,12 +52,12 @@ void clean_up(int sig)
         ::close(raw_socket_);
     }
 
-    while (args.dataq->size() > 0) {
-        DataItem elem = args.dataq->front();
-        args.dataq->pop();
-        MaQueVideoEncFrameInfo_s *pMem = (MaQueVideoEncFrameInfo_s *)elem.ud;
-        MaQue_Demo_Mem_release(pMem->handleMem);
-    }
+    // while (args.dataq->size() > 0) {
+    //     DataItem elem = args.dataq->front();
+    //     args.dataq->pop();
+    //     MaQueVideoEncFrameInfo_s *pMem = (MaQueVideoEncFrameInfo_s *)elem.ud;
+    //     MaQue_Demo_Mem_release(pMem->handleMem);
+    // }
 
     //stop_md_bd();
     LibXmMaQue_System_destroy();
@@ -326,11 +326,12 @@ int main(int argc, char *argv[])
     //
     MaQueVideoEncodeCfg_s cfg;
     init_stream_cfg(&cfg);
-    cfg.nFps = 10;
+    cfg.nFps = 15;
     cfg.eIFrmIntvType = IFRAME_INTV_TYPE_TIME;
     cfg.nIFrameInterval = 10;
-    cfg.eImageQuality = MAQUE_IMG_QUALITY_GOOD;
+    cfg.eImageQuality = MAQUE_IMG_QUALITY_BETTER;
     cfg.eVidComp = MAQUE_VIDEO_COMPRESS_H264;
+    cfg.nBitRate = 200 * 8; // 200KB
     ret = configure_stream(0, &cfg);
     spdlog::info("cfg stream ret: {}", ret);
 
