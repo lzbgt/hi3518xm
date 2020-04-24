@@ -82,7 +82,7 @@ void on_closed(uv_handle_t *handle)
     }
 
     avformat_free_context(pclient->processor.pAvCtx);
-    pclient->processor.pAvCtx = null;
+    pclient->processor.pAvCtx = nullptr;
     delete pclient;
 }
 
