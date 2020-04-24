@@ -162,8 +162,7 @@ int write_packet(AVFormatContext *ctx, char *data, int len)
     AVPacket pkt;
     AVStream *out_stream = ctx->streams[0];
     av_init_packet(&pkt);
-    // isI = isIdrFrame1((uint8_t*)data, len);
-    // pkt.flags |= isI ? AV_PKT_FLAG_KEY : 0;
+ 
     memset(&pkt, 0, sizeof(pkt));
     pkt.stream_index = 0;
     pkt.data = (uint8_t *)data;
@@ -184,19 +183,12 @@ int write_packet(AVFormatContext *ctx, char *data, int len)
     pkt.duration = 0; //av_rescale_q(pkt.duration, out_stream->time_base, out_stream->time_base);
     pkt.pos = -1;
 
-    /* copy packet (remuxing In the example)*/
-    //pkt.pts = av_rescale_q_rnd(pkt.pts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
-    //pkt.dts = av_rescale_q_rnd(pkt.dts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
-    //pkt.duration = av_rescale_q(pkt.duration, in_stream->time_base, out_stream->time_base);
-    //pkt.pos = -1;
-
     ret = av_write_frame(ctx, &pkt);
     if (ret < 0) {
         fprintf(stderr, "Error muxing packet\n");
     }
 
     //av_packet_unref(&pkt);
-
     return ret;
 }
 

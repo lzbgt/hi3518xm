@@ -59,12 +59,12 @@ XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocPa
         pstMem->pBuffer =  raw + sizeof(evpacket_t);
         //printf("malloc. raw: %08X, shifted: %08X\n", (uint32_t)raw, (uint32_t)pstMem->pBuffer);
 
-        if (pstMem->pBuffer - sizeof(evpacket_t)) {
+        if (raw) {
             pstMem->index = 0xff;
             pstMem->nBufSize = pstAllocParam->nBufSize;
             pstMem->nRefCount = 1;
-        }
-        else {
+        }else {
+            spdlog::error("memory allocate failure");
             free(pstMem);
             pstMem = NULL;
         }
