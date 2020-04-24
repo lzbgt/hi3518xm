@@ -37,8 +37,6 @@ XM_S32 MaQue_Demo_Mem_setLength(XM_HANDLE handle, XM_U32 len)
     return 0;
 }
 
-volatile uint32_t cntAlloc = 0, cntFree = 0;
-
 XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocParam)
 {
     DemoMemory_s *pstMem = NULL;
@@ -84,7 +82,6 @@ XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocPa
 
     *pHandle = (XM_HANDLE)pstMem;
     pstAllocParam->pBuffer = pstMem->pBuffer;
-    cntAlloc++;
     pthread_mutex_unlock(&g_mutexMem);
 
     return 0;
@@ -92,29 +89,27 @@ XM_S32 MaQue_Demo_Mem_alloc(XM_HANDLE *pHandle, MaQueMemAllocParam_s *pstAllocPa
 
 XM_S32 MaQue_Demo_Mem_release(XM_HANDLE handle)
 {
-    DemoMemory_s *pstMem = (DemoMemory_s *)handle;
-    
+    DemoMemory_s *pstMem = (DemoMemory_s *)handle;    
     if (!handle) {
         return -1;
     }
     pthread_mutex_lock(&g_mutexMem);
+    XM_U8* shifted = pstMem->pBuffer;
+    XM_U8* raw = shifted - sizeof(evpacket_t);
+
     if (pstMem->nRefCount > 1) {
         pstMem->nRefCount--;
     }
     else if (pstMem->pBuffer && pstMem->pBuffer - sizeof(evpacket_t)) {
         /// NOTE by Bruce: ATTENTION!
-        XM_U8* shifted = pstMem->pBuffer;
-        XM_U8* raw = shifted - sizeof(evpacket_t);
-        cntFree++;
-        //printf("release. raw: %08X, shifted: %08X, a: %d, f: %d\n", (int)raw, (int)shifted, cntAlloc, cntFree);
+        //printf("release. raw: %08X, shifted: %08X\n", (int)raw, (int)shifted);
         free(pstMem->pBuffer - sizeof(evpacket_t));
         free(pstMem);
-    }else{
-        spdlog::error("shouldn't be here. a:{0:d}, f:{0:d}", cntAlloc, cntFree);
-        // NOTE: ATTENTION!
-        // if(pstMem){
-        //     free(pstMem);
-        // }
+    }else if(pstMem->nRefCount < 0){
+        spdlog::error("shouldn't be here. refcnt:{}", pstMem->nRefCount);
+    }
+    else if(raw == nullptr || shifted == nullptr){
+        printf("shouldn't be here. raw: %08X, shifted: %08X\n", (int)raw, (int)shifted);
     }
 
     pthread_mutex_unlock(&g_mutexMem);
