@@ -42,6 +42,8 @@ typedef struct {
     packet_processor_t processor;
 } packet_client;
 
+AVIOInterruptCB int_cb;
+
 bool is_big_endian(void)
 {
     union {
@@ -97,6 +99,11 @@ void debugHex(char *buf, int len)
     fprintf(stderr, "\n");
 }
 
+// av callback
+int av_callback(void *ctx){
+    return 0;
+}
+
 // char *url = "rtsp://evcloudsvc.ilabservice.cloud/test_pusher";
 AVFormatContext *rtsp_init(string rtsp_url, int codec, int height, int width)
 {
@@ -131,7 +138,10 @@ AVFormatContext *rtsp_init(string rtsp_url, int codec, int height, int width)
     out_codecpar->height = height;
     out_codecpar->codec_tag = 0;
     out_codecpar->format = AV_PIX_FMT_YUV420P;
-    avio_open2(&pAVFormatRemux->pb, rtsp_url.c_str(), AVIO_FLAG_WRITE, nullptr, &pOptsRemux);
+
+    int_cb = {av_callback, nullptr};
+    pAVFormatRemux->interrupt_callback = int_cb;
+    avio_open2(&pAVFormatRemux->pb, rtsp_url.c_str(), AVIO_FLAG_WRITE, &pAVFormatRemux->interrupt_callback, &pOptsRemux);
     ret = avformat_write_header(pAVFormatRemux, &pOptsRemux);
     av_dict_free(&pOptsRemux);
 
@@ -228,8 +238,8 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
                     pclient->processor.hdr.meta.crc = 0;
                     uint16_t crc_ = crc16((unsigned char*)&pclient->processor.hdr, sizeof(evpacket_t));
                     if (crc!=crc_||pclient->processor.hdr.meta.magic[0] != (char)0xBE || pclient->processor.hdr.meta.magic[1] != (char)0xEF || pclient->processor.hdr.length == 0) {
-                        printf("packet corruption: invalid magic/len/cid. hdr: %02hhX%02hhX, len:%u, cid:%lu, sid:%lu. crc:%04hhX, crcc:%04hhX. BUG!!! %s:%d\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length,
-                               pclient->processor.hdr.meta.packet_id,pclient->processor.packetId,crc, crc_, __FILE__, __LINE__);
+                        printf("invalid magic/len/cid. hdr: %02hhX%02hhX, len:%d, cid:%lu, sid:%lu. crc:%04hhX, crcc:%04hhX. BUG!!!\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length,
+                               pclient->processor.hdr.meta.packet_id,pclient->processor.packetId,crc, crc_);
                         pclient->processor.size = 0;
                         pclient->processor.state = 1;
                         nread = 0;
@@ -297,7 +307,12 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
                     free(pclient->processor.buf);
                     if (ret < 0) {
                         spdlog::error("failed to send packet");
-                        exit(1);
+                        // reset hand reconnect
+                        if(pclient->processor.pAvCtx->pb) {
+                            avio_closep(&pclient->processor.pAvCtx->pb);
+                        }
+                        avformat_free_context(pclient->processor.pAvCtx);
+                        pclient->processor.pAvCtx = nullptr;
                     }
 
                     // next
