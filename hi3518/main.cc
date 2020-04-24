@@ -23,7 +23,7 @@ using namespace std;
 //#define ENALBE_RECORD
 #define NUM_IFRAME_PICK 2
 #define NUM_MAX_QUEQUE_SIZE 60
-#define NUM_MAX_PACKET_BYTES 1100
+#define NUM_MAX_PACKET_BYTES 1200
 
 static unsigned long long frameCntTotal = 0;
 static unsigned long long frameCntIframe = 0;
@@ -262,11 +262,6 @@ void frame_send_entry(void *args)
         if (elem.size > 0) {
             char *ptr = elem.buf;
             size_t sent = 0;
-            // while((elem.size -= sent) > 0 &&
-            //     (sent = ::send(raw_socket_, (ptr+=sent), elem.size >
-            //         NUM_MAX_PACKET_BYTES? NUM_MAX_PACKET_BYTES:elem.size, 0)) > 0) {
-            //     //
-            // }
             while (elem.size > 0) {
                 ptr += sent;
                 sent = ::send(raw_socket_, ptr, elem.size > NUM_MAX_PACKET_BYTES? NUM_MAX_PACKET_BYTES:elem.size, 0);
