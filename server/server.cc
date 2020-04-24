@@ -77,7 +77,7 @@ void on_closed(uv_handle_t *handle)
     packet_client *pclient = (packet_client *)handle;
     spdlog::error("closing client");
     // TODO:
-    if(pclient->processor.buf){
+    if(pclient->processor.buf) {
         free(pclient->processor.buf);
     }
 
@@ -111,7 +111,8 @@ void debugHex(char *buf, int len)
 }
 
 // av callback
-int av_callback(void *ctx){
+int av_callback(void *ctx)
+{
     return 0;
 }
 
@@ -156,12 +157,12 @@ AVFormatContext *rtsp_init(string rtsp_url, int codec, int height, int width, in
     int_cb = {av_callback, nullptr};
     pAVFormatRemux->interrupt_callback = int_cb;
     ret = avio_open2(&pAVFormatRemux->pb, rtsp_url.c_str(), AVIO_FLAG_WRITE, &pAVFormatRemux->interrupt_callback, &pOptsRemux);
-    if(ret <0){
+    if(ret <0) {
         if(rc) *rc = ret;
         return nullptr;
     }
     ret = avformat_write_header(pAVFormatRemux, &pOptsRemux);
-    if(ret < 0){
+    if(ret < 0) {
         if(rc) *rc = ret;
         return nullptr;
     }
@@ -178,7 +179,7 @@ int write_packet(AVFormatContext *ctx, char *data, int len)
     AVPacket pkt;
     AVStream *out_stream = ctx->streams[0];
     av_init_packet(&pkt);
- 
+
     memset(&pkt, 0, sizeof(pkt));
     pkt.stream_index = 0;
     pkt.data = (uint8_t *)data;
@@ -413,48 +414,52 @@ typedef struct devinfo_t {
     mutex *mut;
     condition_variable *cv;
     devinfo_t(string devsn, queue<dataque_frame_t> *que, AVFormatContext *ctx,
-        mutex *mut, condition_variable *cv):devsn(devsn), que(que), ctx(ctx), mut(mut), cv(cv){}
-    ~devinfo_t(){
+              mutex *mut, condition_variable *cv):devsn(devsn), que(que), ctx(ctx), mut(mut), cv(cv) {}
+    ~devinfo_t()
+    {
         // TODO: for each item in que, delete them
         if(que)
-        delete que;
+            delete que;
         if(ctx)
-        delete ctx;
+            delete ctx;
         if(mut)
-        delete mut;
+            delete mut;
         if(cv)
-        delete cv;
+            delete cv;
     }
 
 } *devinfo_ptr_t;
 
 class RtspPusher {
-    private:
+private:
     map<string, devinfo_t *> devMap;
 
     int num_clients;
     string darwin_addr;
 
-    protected:
-    public:
-    RtspPusher(){
+protected:
+public:
+    RtspPusher()
+    {
         darwin_addr = "rtsp://evcloudsvc.ilabservice.cloud:554/";
     }
 
-    RtspPusher(string darwin_addr):darwin_addr(darwin_addr){}
-    ~RtspPusher(){
+    RtspPusher(string darwin_addr):darwin_addr(darwin_addr) {}
+    ~RtspPusher()
+    {
         // TODO: release devinfo
-        for(auto &[k, v]:devMap){
+        for(auto &[k, v]:devMap) {
             delete v;
         }
     }
-    int send(string devsn, dataque_frame_t && item){
+    int send(string devsn, dataque_frame_t && item)
+    {
         int ret = 0;
         AVFormatContext *ctx = nullptr;
         if(devMap.count(devsn) == 0) {
             string url = darwin_addr + devsn;
             ctx = rtsp_init(url, item.codec, item.height, item.width, &ret);
-            if(ctx == nullptr){
+            if(ctx == nullptr) {
                 spdlog::error("failed to connect rtsp: {}", av_err2str(ret));
                 return -1;
             }
@@ -465,7 +470,7 @@ class RtspPusher {
             devMap.insert({devsn, new devinfo_t{devsn, qu, ctx, mut, cv}});
         }
 
-        if(devMap.count(devsn) == 0){
+        if(devMap.count(devsn) == 0) {
             spdlog::error("failed to get resources map for: {}", devsn);
             return -2;
         }
