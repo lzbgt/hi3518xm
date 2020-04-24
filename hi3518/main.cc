@@ -167,7 +167,10 @@ XM_S32 cb_frame_proc(XM_VOID *pUserArg, MaQueVideoEncFrameInfo_s *frame)
         lock_guard<mutex> lock(*args->noti->mut);
         if (args->dataq->size() >= NUM_MAX_QUEQUE_SIZE) {
             spdlog::warn("dataq full");
+            auto elem = args->dataq->front();
             args->dataq->pop();
+            MaQueVideoEncFrameInfo_s *pMem = (MaQueVideoEncFrameInfo_s *)elem.ud;
+            MaQue_Demo_Mem_release(pMem->handleMem);
         }
         // else if (args->dataq->size() <= NUM_MAX_QUEQUE_SIZE * 2 / 3) {
         //     bAvailable = true;
