@@ -6,11 +6,15 @@
 #include <evpacket.h>
 #include <sys/time.h>
 #include <mutex>
+#include <map>
+#include <queue>
 
 extern "C"
 {
 #include <libavutil/timestamp.h>
 #include <libavformat/avformat.h>
+#undef av_err2str
+#define av_err2str(errnum) av_make_error_string((char*)__builtin_alloca(AV_ERROR_MAX_STRING_SIZE), AV_ERROR_MAX_STRING_SIZE, errnum)
 }
 
 using namespace std;
@@ -112,7 +116,7 @@ int av_callback(void *ctx){
 }
 
 // char *url = "rtsp://evcloudsvc.ilabservice.cloud/test_pusher";
-AVFormatContext *rtsp_init(string rtsp_url, int codec, int height, int width)
+AVFormatContext *rtsp_init(string rtsp_url, int codec, int height, int width, int *rc = nullptr)
 {
     int ret;
     int codec_idx = 0;
@@ -123,16 +127,19 @@ AVFormatContext *rtsp_init(string rtsp_url, int codec, int height, int width)
     AVFormatContext *pAVFormatRemux = nullptr;
     AVDictionary *pOptsRemux = nullptr;
 
-    if (av_dict_set(&pOptsRemux, "rtsp_transport", "tcp", 0) < 0) {
+    ret = av_dict_set(&pOptsRemux, "rtsp_transport", "tcp", 0);
+    if ( ret < 0) {
         spdlog::error("failed set output pOptsRemux");
+        if(rc) *rc = ret;
         return nullptr;
     }
     // timeout in microseconds
     av_dict_set_int(&pOptsRemux, "stimeout", (int64_t)(1000 * 1000 * 1), 0);
     ret = avformat_alloc_output_context2(&pAVFormatRemux, nullptr, "rtsp", rtsp_url.c_str());
     AVStream *out_stream = avformat_new_stream(pAVFormatRemux, nullptr);
-    if (!out_stream) {
+    if (ret < 0|| !out_stream) {
         spdlog::error("Failed allocating output stream\n");
+        if(rc) *rc = ret;
         return nullptr;
     }
 
@@ -148,8 +155,17 @@ AVFormatContext *rtsp_init(string rtsp_url, int codec, int height, int width)
 
     int_cb = {av_callback, nullptr};
     pAVFormatRemux->interrupt_callback = int_cb;
-    avio_open2(&pAVFormatRemux->pb, rtsp_url.c_str(), AVIO_FLAG_WRITE, &pAVFormatRemux->interrupt_callback, &pOptsRemux);
+    ret = avio_open2(&pAVFormatRemux->pb, rtsp_url.c_str(), AVIO_FLAG_WRITE, &pAVFormatRemux->interrupt_callback, &pOptsRemux);
+    if(ret <0){
+        if(rc) *rc = ret;
+        return nullptr;
+    }
     ret = avformat_write_header(pAVFormatRemux, &pOptsRemux);
+    if(ret < 0){
+        if(rc) *rc = ret;
+        return nullptr;
+    }
+
     av_dict_free(&pOptsRemux);
 
     return pAVFormatRemux;
@@ -380,6 +396,85 @@ void on_connect(uv_stream_t *server, int status)
         uv_close((uv_handle_t *)client, on_closed);
     }
 }
+
+typedef struct dataque_frame_t {
+    char devsn[12];
+    int codec;
+    int width;
+    int height;
+    int size;
+    uint8_t *buf;
+} *dataque_frame_ptr_t;
+
+typedef struct devinfo_t {
+    string devsn;
+    queue<dataque_frame_t> *que;
+    AVFormatContext *ctx;
+    mutex *mut;
+    condition_variable *cv;
+    devinfo_t(string devsn, queue<dataque_frame_t> *que, AVFormatContext *ctx,
+        mutex *mut, condition_variable *cv):devsn(devsn), que(que), ctx(ctx), mut(mut), cv(cv){}
+    ~devinfo_t(){
+        // TODO: for each item in que, delete them
+        if(que)
+        delete que;
+        if(ctx)
+        delete ctx;
+        if(mut)
+        delete mut;
+        if(cv)
+        delete cv;
+    }
+
+} *devinfo_ptr_t;
+
+class RtspPusher {
+    private:
+    map<string, devinfo_t *> devMap;
+
+    int num_clients;
+    string darwin_addr;
+
+    protected:
+    public:
+    RtspPusher(){
+        darwin_addr = "rtsp://evcloudsvc.ilabservice.cloud:554/";
+    }
+
+    RtspPusher(string darwin_addr):darwin_addr(darwin_addr){}
+    ~RtspPusher(){
+        // TODO: release devinfo
+        for(auto &[k, v]:devMap){
+            delete v;
+        }
+    }
+    int send(string devsn, dataque_frame_t && item){
+        int ret = 0;
+        AVFormatContext *ctx = nullptr;
+        if(devMap.count(devsn) == 0) {
+            string url = darwin_addr + devsn;
+            ctx = rtsp_init(url, item.codec, item.height, item.width, &ret);
+            if(ctx == nullptr){
+                spdlog::error("failed to connect rtsp: {}", av_err2str(ret));
+                return -1;
+            }
+            //
+            mutex *mut = new mutex();
+            queue<dataque_frame_t> * qu = new queue<dataque_frame_t>();
+            condition_variable *cv = new condition_variable();
+            devMap.insert({devsn, new devinfo_t{devsn, qu, ctx, mut, cv}});
+        }
+
+        if(devMap.count(devsn) == 0){
+            spdlog::error("failed to get resources map for: {}", devsn);
+            return -2;
+        }
+        devinfo_t *info = devMap[devsn];
+        lock_guard<mutex> lock(*info->mut);
+        info->que->push(std::move(item));
+        info->cv->notify_all();
+    }
+};
 
 int main()
 {
