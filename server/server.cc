@@ -17,6 +17,7 @@ using namespace std;
 
 #define DEFAULT_PORT 7123
 #define DEFAULT_BACKLOG 128
+#define MAX_FRAME_SIZE 500000
 
 uv_loop_t *loop;
 struct sockaddr_in addr;
@@ -72,11 +73,17 @@ void on_closed(uv_handle_t *handle)
     packet_client *pclient = (packet_client *)handle;
     spdlog::error("closing client");
     // TODO:
-    // if(pclient->processor.buf){
-    //     free(pclient->processor.buf);
-    // }
+    if(pclient->processor.buf){
+        free(pclient->processor.buf);
+    }
+
+    if(pclient->processor.pAvCtx->pb) {
+        avio_closep(&pclient->processor.pAvCtx->pb);
+    }
+
     avformat_free_context(pclient->processor.pAvCtx);
-    delete handle;
+    pclient->processor.pAvCtx = null;
+    delete pclient;
 }
 
 void on_written(uv_write_t *req, int status)
@@ -188,7 +195,7 @@ int write_packet(AVFormatContext *ctx, char *data, int len)
         fprintf(stderr, "Error muxing packet\n");
     }
 
-    av_packet_unref(&pkt);
+    //av_packet_unref(&pkt);
 
     return ret;
 }
@@ -197,8 +204,6 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
 {
     packet_client *pclient = (packet_client *)client;
     char *data = buf->base;
-    static int packetId = 0;
-    // spdlog::debug("packetId: {}, nread: {}", ++packetId, nread);
     lock_guard<mutex> lk(pclient->processor.mut);
     if (nread > 0) {
         evpacket_ptr_t pkt = (evpacket_ptr_t)data;
@@ -246,10 +251,10 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
                         continue;
                     }
                     else {
-                        printf("new packet: %02hhX%02hhX, len: %lu, cid:%lu, sid:%lu\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length, pclient->processor.hdr.meta.packet_id,pclient->processor.packetId);
+                        printf("new packet: %02hhX%02hhX, len: %u, cid:%lu, sid:%lu\n", pclient->processor.hdr.meta.magic[0], pclient->processor.hdr.meta.magic[1], pclient->processor.hdr.length, pclient->processor.hdr.meta.packet_id,pclient->processor.packetId);
                     }
 
-                    if (pclient->processor.hdr.length >= 500000) {
+                    if (pclient->processor.hdr.length >= MAX_FRAME_SIZE) {
                         spdlog::error("invliad packet large len: {}, ignored. {}:{}", pclient->processor.hdr.length, __FILE__, __LINE__);
                         pclient->processor.size = 0;
                         pclient->processor.state = 1;
@@ -303,8 +308,9 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
                     // TODO: handle body dispatch
                     // spdlog::debug("TODO: full body got. left for next header: {}", nread);
                     auto ret = write_packet(pclient->processor.pAvCtx, pclient->processor.buf, pclient->processor.hdr.length);
-                    pclient->processor.packetId =  pclient->processor.hdr.meta.packet_id;
+                    pclient->processor.buf = nullptr;
                     free(pclient->processor.buf);
+                    pclient->processor.packetId =  pclient->processor.hdr.meta.packet_id;
                     if (ret < 0) {
                         spdlog::error("failed to send packet");
                         // reset hand reconnect
@@ -354,11 +360,11 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
     if (nread < 0) {
         if (nread != UV_EOF) {
             spdlog::error("Read error {}, closing", uv_err_name(nread));
-            uv_close((uv_handle_t *)client, on_closed);
         }
         else {
             spdlog::error("read error {}", uv_err_name(nread));
         }
+        uv_close((uv_handle_t *)client, on_closed);
     }
 
     free(buf->base);
