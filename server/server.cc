@@ -47,6 +47,39 @@ typedef struct {
     packet_processor_t processor;
 } packet_client;
 
+typedef struct dataque_frame_t {
+    char devsn[12];
+    int codec;
+    int width;
+    int height;
+    int size;
+    uint8_t *buf;
+} *dataque_frame_ptr_t;
+
+typedef struct devinfo_t {
+    string devsn;
+    int state;
+    queue<dataque_frame_t> *que;
+    AVFormatContext *ctx;
+    mutex *mut;
+    condition_variable *cv;
+    devinfo_t(string devsn, queue<dataque_frame_t> *que, AVFormatContext *ctx,
+              mutex *mut, condition_variable *cv):devsn(devsn), que(que), ctx(ctx), mut(mut), cv(cv) {}
+    ~devinfo_t()
+    {
+        // TODO: for each item in que, delete them
+        if(que)
+            delete que;
+        if(ctx)
+            delete ctx;
+        if(mut)
+            delete mut;
+        if(cv)
+            delete cv;
+    }
+
+} *devinfo_ptr_t;
+
 AVIOInterruptCB int_cb;
 
 bool is_big_endian(void)
@@ -397,38 +430,6 @@ void on_connect(uv_stream_t *server, int status)
         uv_close((uv_handle_t *)client, on_closed);
     }
 }
-
-typedef struct dataque_frame_t {
-    char devsn[12];
-    int codec;
-    int width;
-    int height;
-    int size;
-    uint8_t *buf;
-} *dataque_frame_ptr_t;
-
-typedef struct devinfo_t {
-    string devsn;
-    queue<dataque_frame_t> *que;
-    AVFormatContext *ctx;
-    mutex *mut;
-    condition_variable *cv;
-    devinfo_t(string devsn, queue<dataque_frame_t> *que, AVFormatContext *ctx,
-              mutex *mut, condition_variable *cv):devsn(devsn), que(que), ctx(ctx), mut(mut), cv(cv) {}
-    ~devinfo_t()
-    {
-        // TODO: for each item in que, delete them
-        if(que)
-            delete que;
-        if(ctx)
-            delete ctx;
-        if(mut)
-            delete mut;
-        if(cv)
-            delete cv;
-    }
-
-} *devinfo_ptr_t;
 
 class RtspPusher {
 private:
